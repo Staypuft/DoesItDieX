@@ -190,16 +190,43 @@ local function isSecret(v)
     return ok and r or false
 end
 
+-- The nameplate token ("nameplate3") of the mob behind `unit`, or nil (no plate, plates off, or unreadable).
+-- In instances the client makes creature GUIDs, names and IDs secret, but a mob's nameplate token stays the same
+-- from NAME_PLATE_UNIT_ADDED to NAME_PLATE_UNIT_REMOVED, and C_NamePlate.GetNamePlateForUnit("target") still
+-- finds the target's plate there (TargetNameplateIndicator switched to it for exactly this). So the token stands
+-- in for the GUID while the plate is up; NAME_PLATE_UNIT_REMOVED drops its DoTs before the token is reused.
+local function plateTokenFor(unit)
+    if type(unit) == "string" and unit:match("^nameplate%d+$") then return unit end
+    if not (C_NamePlate and C_NamePlate.GetNamePlateForUnit) then return nil end
+    local ok, plate = pcall(C_NamePlate.GetNamePlateForUnit, unit)
+    if not ok or not plate or isSecret(plate) or type(plate) ~= "table" then return nil end
+    local token = plate.namePlateUnitToken or (plate.UnitFrame and plate.UnitFrame.unit)
+    if type(token) ~= "string" or isSecret(token) or not token:match("^nameplate%d+$") then return nil end
+    return token
+end
+
 -- Stable key for the mob behind a unit token, or nil if the unit can't be tracked.
 -- The same hit arrives for target, nameplateN and softenemy, and their GUIDs may not all be readable,
 -- so a hidden GUID only affects that one unit token.
+-- Keys: the GUID when readable (open world); "plate:nameplateN" when GUIDs are secret (instances) and the mob has
+-- a nameplate; "target" as a last resort (secret GUID, no plate: only the current target is tracked, and its
+-- DoTs are forgotten on every target change).
 local function unitKey(unit)
     local ok, guid = pcall(UnitGUID, unit)
     if ok and not isSecret(guid) then return guid end
+    local token = plateTokenFor(unit)
+    if token then
+        if warnedSecretGuid ~= "plate" then
+            warnedSecretGuid = "plate"
+            trace("Mob GUIDs are secret here (instance?); tracking each mob by its nameplate instead")
+        end
+        return "plate:" .. token
+    end
     if unit ~= "target" then return nil end
-    if not warnedSecretGuid then
-        warnedSecretGuid = true
-        trace("Target GUID is secret; tracking DoTs on the current target only")
+    if warnedSecretGuid ~= "target" then
+        warnedSecretGuid = "target"
+        trace("Target GUID is secret and its nameplate isn't available; tracking DoTs on the current target only"
+            .. " (turn on enemy nameplates to track several mobs)")
     end
     return "target"
 end
@@ -1788,6 +1815,8 @@ frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
 frame:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "player")   -- combo points, before a finisher spends them
 frame:RegisterUnitEvent("UNIT_POWER_FREQUENT", "player")   -- keeps a recent combo point reading as backup
 frame:RegisterEvent("UNIT_COMBAT")
+frame:RegisterEvent("NAME_PLATE_UNIT_ADDED")   -- plate tokens stand in for secret GUIDs (see plateTokenFor)
+frame:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
 -- Never register COMBAT_LOG_EVENT_UNFILTERED: Forever forbids it and shows a "blocked" popup.
 
 frame:SetScript("OnEvent", function(self, event, ...)
@@ -1839,6 +1868,16 @@ frame:SetScript("OnEvent", function(self, event, ...)
         safeRefresh()
         -- A DoT waiting for its first tick isn't drawn yet; it flashes when that tick lands instead.
         if appliedTo and not waiting and appliedTo == unitKey("target") then playFlash() end
+
+    elseif event == "NAME_PLATE_UNIT_ADDED" or event == "NAME_PLATE_UNIT_REMOVED" then
+        -- A plate token is reused for the next mob that gets a plate: the DoTs keyed by it belonged to the old one.
+        local token = ...
+        if type(token) == "string" and not isSecret(token) and dotsByTarget["plate:" .. token] then
+            dotsByTarget["plate:" .. token] = nil
+            trace("PLATE " .. token .. (event == "NAME_PLATE_UNIT_REMOVED" and " removed" or " reused")
+                .. ": forgetting its DoTs")
+            safeRefresh()
+        end
 
     elseif event == "UNIT_COMBAT" then
         local revealed = onUnitCombat(...)
