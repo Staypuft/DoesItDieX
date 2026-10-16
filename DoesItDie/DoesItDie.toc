@@ -4,7 +4,6 @@
 ## Author: Joe Greive
 ## Version: @project-version@
 ## SavedVariables: DoesItDieDB
-## X-Curse-Project-ID:
 
 DoesItDie.lua
 Frames.lua
