@@ -1769,6 +1769,15 @@ end
 ns.print = print
 ns.trace = trace
 
+-- Read-only access to the tracking for API.lua (the public DoesItDieAPI, e.g. for TellMeWhen) and
+-- ScreenIcons.lua (the free-standing on-screen icons). Don't modify these tables from outside.
+ns.unitKey = unitKey
+ns.dotsByTarget = dotsByTarget
+ns.remainingDamage = remainingDamage
+ns.isWaiting = isWaiting
+ns.isSecret = isSecret
+ns.dotBreakdown = dotBreakdown
+
 function ns.resetLearnedTicks()
     wipe(db.ticks)
     print("Learned tick sizes cleared.")
@@ -1904,6 +1913,8 @@ end)
 SLASH_DOESITDIE1 = "/did"
 SLASH_DOESITDIE2 = "/doesitdie"
 SlashCmdList.DOESITDIE = function(msg)
+    -- /did screen ...: the on-screen icons (ScreenIcons.lua). Gets the raw text: frame names are case-sensitive.
+    if ns.screenCommand and ns.screenCommand(msg or "") then return end
     local cmd = strlower(strtrim(msg or ""))
     if cmd == "" or cmd == "options" or cmd == "config" then
         ns.openOptions()
@@ -1937,5 +1948,6 @@ SlashCmdList.DOESITDIE = function(msg)
         print("/did exec [percent] - test showing when the target is below 20% (or the given percent); again to stop")
         print("/did debug - toggle echoing the trace log (casts, ticks, estimates) to chat")
         print("/did reset - forget learned tick sizes")
+        print("/did screen - free-standing on-screen kill icon and DoT icons (/did screen help)")
     end
 end
