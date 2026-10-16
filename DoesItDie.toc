@@ -1,0 +1,14 @@
+## Interface: 16001
+## Title: DoesItDie-Staypuft
+## Notes: Tracks your DoTs and marks the damage they still have left on your target's health bar, with a kill icon on the portrait when they'll finish it off. Fully customizable look (/did).
+## Author: Joe Greive (fork: Staypuft)
+## Version: 0.6.1-staypuft.2
+## SavedVariables: DoesItDieDB
+
+DoesItDie.lua
+Frames.lua
+Options.lua
+Nameplates.lua
+Execute.lua
+API.lua
+ScreenIcons.lua
