@@ -1466,6 +1466,19 @@ local function findTargetHealthBar()
         or (tf and tf.healthbar)
 end
 
+-- EllesmereUI's target frame replaces (and hides) Blizzard's. With no custom frames set, it's used when it exists.
+local ELLESMERE_BAR = "EllesmereUIUnitFrames_Target.Health"
+local ELLESMERE_PORTRAIT = "EllesmereUIUnitFrames_Target.Portrait"
+
+-- The custom health bar and icon anchor paths in effect, and whether they're EllesmereUI's (auto-detected).
+local function customPaths()
+    if strtrim(db.customHealthBar) == "" and strtrim(db.customIconAnchor) == ""
+        and ns.resolveFramePath(ELLESMERE_BAR) then
+        return ELLESMERE_BAR, ELLESMERE_PORTRAIT, true
+    end
+    return db.customHealthBar, db.customIconAnchor, false
+end
+
 local function regionName(region)
     if not region then return "not found" end
     local ok, name = pcall(region.GetDebugName, region)
@@ -1485,8 +1498,9 @@ local function attach(force)
     if previewHost then
         portrait, bar = previewHost.portrait, previewHost.healthBar
     else
-        customBar = ns.resolveFramePath(db.customHealthBar)
-        customAnchor = ns.resolveFramePath(db.customIconAnchor)
+        local barPath, anchorPath = customPaths()
+        customBar = ns.resolveFramePath(barPath)
+        customAnchor = ns.resolveFramePath(anchorPath)
         bar = customBar or findTargetHealthBar()
         -- Replacement frames often have no portrait; the kill icon then sits on their health bar (offsets move it).
         portrait = customAnchor or (customBar == nil and findTargetPortrait()) or nil
@@ -1512,8 +1526,9 @@ local function attach(force)
         if path == "" then return "" end
         return found and (" (custom " .. path .. ")") or (" (custom " .. path .. " NOT FOUND, using Blizzard's)")
     end
-    trace("ATTACH portrait: " .. regionName(portrait) .. describeSetting(db.customIconAnchor, customAnchor)
-        .. " | health bar: " .. regionName(healthBar) .. describeSetting(db.customHealthBar, customBar))
+    local barPath, anchorPath = customPaths()
+    trace("ATTACH portrait: " .. regionName(portrait) .. describeSetting(anchorPath, customAnchor)
+        .. " | health bar: " .. regionName(healthBar) .. describeSetting(barPath, customBar))
     return portrait ~= nil or customBar ~= nil
 end
 
@@ -1524,10 +1539,12 @@ function ns.attachStatus()
         if found then return "|cff66ff66" .. strtrim(path) .. "|r" end
         return "|cffff6666" .. strtrim(path) .. " not found|r, using " .. blizzard
     end
-    local customBar = ns.resolveFramePath(db.customHealthBar)
+    local barPath, anchorPath, ellesmere = customPaths()
+    local customBar = ns.resolveFramePath(barPath)
     local iconFallback = customBar and "the health bar" or "Blizzard's portrait"
-    return line(db.customHealthBar, customBar, "Blizzard's target frame"),
-        line(db.customIconAnchor, ns.resolveFramePath(db.customIconAnchor), iconFallback)
+    local suffix = ellesmere and " (EllesmereUI, auto)" or ""
+    return line(barPath, customBar, "Blizzard's target frame") .. suffix,
+        line(anchorPath, ns.resolveFramePath(anchorPath), iconFallback) .. suffix
 end
 
 local STRATA_RANK = {

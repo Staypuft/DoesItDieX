@@ -53,8 +53,28 @@ local function call(fn, ...)
     return describe(pcall(fn, ...))
 end
 
--- Blizzard's health bar inside a nameplate, and the path it was found under.
+-- EllesmereUI's own plate on a Blizzard nameplate: it parents a pooled frame to the nameplate (.nameplate points
+-- back to it, .health is its StatusBar) and parks Blizzard's health bar on a hidden frame, so drawing on
+-- Blizzard's bar shows nothing.
+local function findEllesmereBar(plate)
+    local ok, bar = pcall(function()
+        for _, child in ipairs({ plate:GetChildren() }) do
+            if not (child.IsForbidden and child:IsForbidden()) and child.nameplate == plate then
+                local health = child.health
+                if type(health) == "table" and type(health.GetObjectType) == "function"
+                    and health:GetObjectType() == "StatusBar" then
+                    return health
+                end
+            end
+        end
+    end)
+    return ok and bar or nil
+end
+
+-- The health bar shown on a nameplate (a replacement addon's, else Blizzard's), and the path it was found under.
 local function findHealthBar(plate)
+    local ellesmere = findEllesmereBar(plate)
+    if ellesmere then return ellesmere, "EllesmereUI plate.health" end
     local unitFrame = plate.UnitFrame
     if not unitFrame then return nil, "no UnitFrame" end
     if unitFrame.healthBar then return unitFrame.healthBar, "UnitFrame.healthBar" end
@@ -250,7 +270,11 @@ end
 
 local function widgetsFor(plate, healthBar)
     local w = widgetsByPlate[plate]
-    if not w or w.healthBar ~= healthBar then w = createWidgets(plate, healthBar) end
+    if not w or w.healthBar ~= healthBar then
+        -- The old widgets stay anchored to a bar that may now sit on another mob (pooled replacement plates).
+        if w then hideWidgets(w) end
+        w = createWidgets(plate, healthBar)
+    end
     return w
 end
 
