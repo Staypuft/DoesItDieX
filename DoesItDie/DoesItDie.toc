@@ -12,3 +12,4 @@ Nameplates.lua
 Execute.lua
 API.lua
 ScreenIcons.lua
+NoEUISwipe.lua
